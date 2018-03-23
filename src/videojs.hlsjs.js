@@ -77,7 +77,7 @@ function Html5HlsJS(source, tech) {
 
   // update live status on level load
   hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
-    duration = data.details.live ? Infinity : data.details.totalduration;
+    duration = data.details.totalduration;
   });
 
   // try to recover on fatal errors
