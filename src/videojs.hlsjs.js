@@ -26,19 +26,17 @@ function Html5HlsJS(source, tech) {
     var _recoverDecodingErrorDate = null;
     var _recoverAudioCodecErrorDate = null;
 
-    return function() {
+    return function () {
       var now = Date.now();
 
       if (!_recoverDecodingErrorDate || (now - _recoverDecodingErrorDate) > 2000) {
         _recoverDecodingErrorDate = now;
         hls.recoverMediaError();
-      }
-      else if (!_recoverAudioCodecErrorDate || (now - _recoverAudioCodecErrorDate) > 2000) {
+      } else if (!_recoverAudioCodecErrorDate || (now - _recoverAudioCodecErrorDate) > 2000) {
         _recoverAudioCodecErrorDate = now;
         hls.swapAudioCodec();
         hls.recoverMediaError();
-      }
-      else {
+      } else {
         console.error('Error loading media: File could not be played');
       }
     };
@@ -49,13 +47,12 @@ function Html5HlsJS(source, tech) {
   var videoTagErrorHandler = errorHandlerFactory();
 
   // listen to error events coming from the video tag
-  el.addEventListener('error', function(e) {
+  el.addEventListener('error', function (e) {
     var mediaError = e.currentTarget.error;
 
     if (mediaError.code === mediaError.MEDIA_ERR_DECODE) {
       videoTagErrorHandler();
-    }
-    else {
+    } else {
       console.error('Error loading media: File could not be played');
     }
   });
@@ -63,7 +60,7 @@ function Html5HlsJS(source, tech) {
   /**
    * Destroys the Hls instance
    */
-  this.dispose = function() {
+  this.dispose = function () {
     hls.destroy();
   };
 
@@ -71,17 +68,17 @@ function Html5HlsJS(source, tech) {
    * returns the duration of the stream, or Infinity if live video
    * @returns {Infinity|number}
    */
-  this.duration = function() {
+  this.duration = function () {
     return duration || el.duration || 0;
   };
 
   // update live status on level load
-  hls.on(Hls.Events.LEVEL_LOADED, function(event, data) {
+  hls.on(Hls.Events.LEVEL_LOADED, function (event, data) {
     duration = data.details.totalduration;
   });
 
   // try to recover on fatal errors
-  hls.on(Hls.Events.ERROR, function(event, data) {
+  hls.on(Hls.Events.ERROR, function (event, data) {
     if (data.fatal) {
       switch (data.type) {
         case Hls.ErrorTypes.NETWORK_ERROR:
@@ -97,9 +94,54 @@ function Html5HlsJS(source, tech) {
     }
   });
 
-  Object.keys(Hls.Events).forEach(function(key) {
+  hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+    // 1. Format payload
+    var cleanTracklist = [];
+
+    // Add an "auto" quality.
+    if (data.levels.length > 1) {
+      var autoLevel = {
+        id: -1,
+        label: "auto",
+        selected: -1 === hls.manualLevel
+      };
+      cleanTracklist.push(autoLevel);
+    }
+
+    // Format each hls level into the expected "Quality" format
+    data.levels.forEach(function (level, index) {
+      var quality = {}; // Don't write in level (shared reference with Hls.js)
+      quality.id = index;
+      quality.selected = index === hls.manualLevel;
+      quality.label = _levelLabel(level);
+
+      cleanTracklist.push(quality);
+    });
+
+    var payload = {
+      qualityData: {
+        video: cleanTracklist
+      },
+      qualitySwitchCallback: function (qualityId, trackType) {
+        hls.nextLevel = qualityId;
+      }
+    };
+
+    // 2. Trigger custom event from tech
+    tech.trigger('loadedqualitydata', payload);
+
+    // Helper method used to format the Quality's label
+    function _levelLabel(level) {
+      if (level.height) return level.height + "p";
+      else if (level.width) return Math.round(level.width * 9 / 16) + "p";
+      else if (level.bitrate) return (level.bitrate / 1000) + "kbps";
+      else return 0;
+    }
+  });
+
+  Object.keys(Hls.Events).forEach(function (key) {
     var eventName = Hls.Events[key];
-    hls.on(eventName, function(event, data) {
+    hls.on(eventName, function (event, data) {
       tech.trigger(eventName, data);
     });
   });
@@ -111,7 +153,7 @@ function Html5HlsJS(source, tech) {
       value: tech.textTracks,
       writable: false
     });
-    el.addTextTrack = function() {
+    el.addTextTrack = function () {
       return tech.addTextTrack.apply(tech, arguments);
     };
   }
@@ -125,24 +167,21 @@ var hlsTypeRE = /^application\/(x-mpegURL|vnd\.apple\.mpegURL)$/i;
 var hlsExtRE = /\.m3u8/i;
 
 var HlsSourceHandler = {
-  canHandleSource: function(source) {
+  canHandleSource: function (source) {
     if (source.skipContribHlsJs) {
       return '';
-    }
-    else if (hlsTypeRE.test(source.type)) {
+    } else if (hlsTypeRE.test(source.type)) {
       return 'probably';
-    }
-    else if (hlsExtRE.test(source.src)) {
+    } else if (hlsExtRE.test(source.src)) {
       return 'maybe';
-    }
-    else {
+    } else {
       return '';
     }
   },
-  handleSource: function(source, tech) {
+  handleSource: function (source, tech) {
     return new Html5HlsJS(source, tech);
   },
-  canPlayType: function(type) {
+  canPlayType: function (type) {
     if (hlsTypeRE.test(type)) {
       return 'probably';
     }
@@ -164,8 +203,7 @@ if (Hls.isSupported()) {
     if (html5Tech) {
       html5Tech.registerSourceHandler(HlsSourceHandler, 0);
     }
-  }
-  else {
+  } else {
     console.warn('videojs-contrib-hls.js: Couldn\'t find find window.videojs nor require(\'video.js\')');
   }
 }
