@@ -7,7 +7,8 @@
     "example": "examples"
   },
   "dependencies": {
-    "hls.js": "^0.8.9"
+    "hls.js": "^0.9.1",
+    "videojs-quality-picker": "^0.0.3"
   },
   "devDependencies": {
     "webpack": "2.4.1"
